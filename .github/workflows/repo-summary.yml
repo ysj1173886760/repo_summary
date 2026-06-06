@@ -1,0 +1,63 @@
+name: Repo Summary
+
+on:
+  schedule:
+    # Every Monday at 01:00 UTC (≈ 09:00 Beijing time).
+    - cron: "0 1 * * 1"
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: "Comma-separated owner/repo list (blank = PyTorch ecosystem default)"
+        required: false
+        default: ""
+      days:
+        description: "Look-back window in days"
+        required: false
+        default: "7"
+
+# Allow the workflow to commit the generated reports back to the repository.
+permissions:
+  contents: write
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate summaries
+        env:
+          # GITHUB_TOKEN is provided automatically; used to raise GitHub API rate limits.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_BASE_URL: https://openrouter.ai/api/v1
+          OPENAI_MODEL: deepseek/deepseek-v4-pro
+        run: |
+          REPOS="${{ github.event.inputs.repos }}"
+          DAYS="${{ github.event.inputs.days }}"
+          ARGS=""
+          if [ -n "$REPOS" ]; then ARGS="$ARGS --repos $REPOS"; fi
+          if [ -n "$DAYS" ]; then ARGS="$ARGS --days $DAYS"; fi
+          python main.py $ARGS
+
+      - name: Commit and push reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports
+          if git diff --cached --quiet; then
+            echo "No report changes to commit."
+          else
+            git commit -m "chore: update repo summaries ($(date -u +%Y-%m-%d))"
+            git push
+          fi
