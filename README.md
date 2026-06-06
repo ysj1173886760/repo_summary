@@ -58,7 +58,7 @@ OPENAI_MODEL=gemini-2.0-flash
 ## Usage
 
 ```bash
-# Default (no args): the whole PyTorch ecosystem, last 7 days
+# Default (no args): the configured default repos, last 7 days
 python main.py
 
 # A single repo
@@ -73,6 +73,9 @@ python main.py pytorch pytorch --days 14
 # Backfill a past window (ends on a specific date, UTC)
 python main.py pytorch pytorch --end 2026-03-01 --days 7
 
+# One-time backfill: the past month, one report per week
+python main.py --backfill 4          # 4 contiguous 7-day windows, newest first
+
 # Override model / endpoint per run
 python main.py pytorch pytorch --model gpt-4o --base-url https://api.openai.com/v1
 
@@ -80,10 +83,9 @@ python main.py pytorch pytorch --model gpt-4o --base-url https://api.openai.com/
 python main.py pytorch pytorch --no-ai
 ```
 
-When run with **no positional args and no `--repos`**, it defaults to the
-PyTorch ecosystem (`pytorch/pytorch`, `pytorch/vision`, `pytorch/audio`,
-`pytorch/ao`, `pytorch/executorch`). Edit `DEFAULT_REPOS` in
-`repo_summary/cli.py` to change the default set.
+When run with **no positional args and no `--repos`**, it defaults to
+`pytorch/torchtitan`, `pytorch/pytorch`, and `nvidia/megatron-lm`. Edit
+`DEFAULT_REPOS` in `repo_summary/cli.py` to change the default set.
 
 You can also run it as a module:
 
@@ -96,8 +98,9 @@ python -m repo_summary.cli pytorch pytorch
 | Flag             | Default     | Description                                  |
 | ---------------- | ----------- | -------------------------------------------- |
 | `owner` / `repo` | `pytorch`   | Target repository.                           |
-| `--days`         | `7`         | Look-back window length in days.             |
-| `--end`          | now (UTC)   | End of window as `YYYY-MM-DD`.               |
+| `--days`         | `7`         | Window width in days.                        |
+| `--end`          | now (UTC)   | End of the most recent window as `YYYY-MM-DD`. |
+| `--backfill`     | `1`         | Generate N contiguous windows going back in time. |
 | `--model`        | env / `gpt-4o-mini` | Model name.                          |
 | `--base-url`     | env         | OpenAI-compatible base URL.                  |
 | `--temperature`  | `0.3`       | Sampling temperature.                        |
@@ -111,8 +114,11 @@ A workflow at `.github/workflows/repo-summary.yml` runs the tool automatically,
 then commits the generated reports back to the repo.
 
 - **Schedule:** every Monday 01:00 UTC (~09:00 Beijing time).
-- **Manual run:** Actions tab → *Repo Summary* → *Run workflow* (optionally pass
-  a custom `repos` list and `days`).
+- **Manual run:** Actions tab → *Repo Summary* → *Run workflow*. Optional inputs:
+  - `repos` — custom `owner/repo` list (blank = default set).
+  - `days` — window width (default `7`).
+  - `backfill` — number of contiguous windows (e.g. `4` = past 4 weeks, one
+    report each). Use this for a one-time month backfill straight from the web UI.
 
 ### One-time setup
 
@@ -127,7 +133,8 @@ then commits the generated reports back to the repo.
 The workflow uses the built-in `GITHUB_TOKEN` for GitHub API rate limits, and
 `OPENROUTER_API_KEY` for summarization. Model/endpoint are set in the workflow
 env (`deepseek/deepseek-v4-pro` via OpenRouter); edit the workflow to change
-them. The default repo set is the PyTorch ecosystem.
+them. The default repo set is `pytorch/torchtitan`, `pytorch/pytorch`, and
+`nvidia/megatron-lm`.
 
 > Note: `.env` is git-ignored and only used for local runs. Never commit your
 > real API key — use the GitHub secret instead.
