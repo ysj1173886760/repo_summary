@@ -11,9 +11,13 @@ on:
         required: false
         default: ""
       days:
-        description: "Look-back window in days"
+        description: "Window width in days"
         required: false
         default: "7"
+      backfill:
+        description: "Number of contiguous windows to generate (e.g. 4 = past 4 weeks, one report each)"
+        required: false
+        default: "1"
 
 # Allow the workflow to commit the generated reports back to the repository.
 permissions:
@@ -45,9 +49,11 @@ jobs:
         run: |
           REPOS="${{ github.event.inputs.repos }}"
           DAYS="${{ github.event.inputs.days }}"
+          BACKFILL="${{ github.event.inputs.backfill }}"
           ARGS=""
           if [ -n "$REPOS" ]; then ARGS="$ARGS --repos $REPOS"; fi
           if [ -n "$DAYS" ]; then ARGS="$ARGS --days $DAYS"; fi
+          if [ -n "$BACKFILL" ]; then ARGS="$ARGS --backfill $BACKFILL"; fi
           python main.py $ARGS
 
       - name: Commit and push reports

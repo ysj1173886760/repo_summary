@@ -19,13 +19,11 @@ from .formatting import pulls_to_prompt_input
 from .github_client import fetch_recent_pulls
 from .summarizer import summarize
 
-# Default set of repositories in the PyTorch ecosystem.
+# Default set of repositories to summarize.
 DEFAULT_REPOS = [
+    "pytorch/torchtitan",
     "pytorch/pytorch",
-    "pytorch/vision",
-    "pytorch/audio",
-    "pytorch/ao",
-    "pytorch/executorch",
+    "nvidia/megatron-lm",
 ]
 
 
@@ -42,11 +40,18 @@ def _parse_args(argv=None) -> argparse.Namespace:
         help="Comma-separated list of owner/repo to summarize (overrides positional args). "
         "Default when no positional args given: the PyTorch ecosystem.",
     )
-    parser.add_argument("--days", type=int, default=7, help="Look back this many days (default: 7)")
+    parser.add_argument("--days", type=int, default=7, help="Window width in days (default: 7)")
     parser.add_argument(
         "--end",
         default=None,
-        help="End of window as YYYY-MM-DD (default: now, UTC). Useful for backfilling.",
+        help="End of the most recent window as YYYY-MM-DD (default: now, UTC).",
+    )
+    parser.add_argument(
+        "--backfill",
+        type=int,
+        default=1,
+        help="Generate N consecutive windows going back in time, each --days wide "
+        "(e.g. --backfill 4 with --days 7 = the past 4 weeks, one report each).",
     )
     parser.add_argument("--model", default=None, help="Model name (overrides OPENAI_MODEL)")
     parser.add_argument("--base-url", default=None, help="OpenAI-compatible base URL (overrides OPENAI_BASE_URL)")
@@ -58,17 +63,28 @@ def _parse_args(argv=None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _resolve_window(args: argparse.Namespace):
+def _resolve_windows(args: argparse.Namespace):
+    """Return a list of (since_time, end_time) windows.
+
+    With ``--backfill N`` this yields N contiguous windows of ``--days`` each,
+    starting from ``--end`` (or now) and stepping back in time.
+    """
     if args.end:
         try:
-            end_time = datetime.strptime(args.end, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            base_end = datetime.strptime(args.end, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         except ValueError:
             print(f"Invalid --end date '{args.end}', expected YYYY-MM-DD.", file=sys.stderr)
             sys.exit(2)
     else:
-        end_time = datetime.now(timezone.utc)
-    since_time = end_time - timedelta(days=args.days)
-    return since_time, end_time
+        base_end = datetime.now(timezone.utc)
+
+    count = max(1, args.backfill)
+    windows = []
+    for i in range(count):
+        end_time = base_end - timedelta(days=args.days * i)
+        since_time = end_time - timedelta(days=args.days)
+        windows.append((since_time, end_time))
+    return windows
 
 
 def _resolve_targets(args: argparse.Namespace):
@@ -133,18 +149,25 @@ def _process_one(owner: str, repo: str, args, since_time, end_time) -> bool:
 def main(argv=None) -> int:
     args = _parse_args(argv)
     targets = _resolve_targets(args)
-    since_time, end_time = _resolve_window(args)
+    windows = _resolve_windows(args)
 
     if not targets:
         print("No valid repositories to summarize.", file=sys.stderr)
         return 2
 
     print(f"Summarizing {len(targets)} repo(s): {', '.join(f'{o}/{r}' for o, r in targets)}")
+    if len(windows) > 1:
+        print(f"Backfilling {len(windows)} windows of {args.days} day(s) each.")
 
     all_ok = True
-    for owner, repo in targets:
-        ok = _process_one(owner, repo, args, since_time, end_time)
-        all_ok = all_ok and ok
+    for since_time, end_time in windows:
+        if len(windows) > 1:
+            print("\n" + "#" * 50)
+            print(f"# Window: {since_time.strftime('%Y-%m-%d')} -> {end_time.strftime('%Y-%m-%d')}")
+            print("#" * 50)
+        for owner, repo in targets:
+            ok = _process_one(owner, repo, args, since_time, end_time)
+            all_ok = all_ok and ok
 
     return 0 if all_ok else 1
 
