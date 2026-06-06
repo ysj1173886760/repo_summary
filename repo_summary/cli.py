@@ -53,6 +53,11 @@ def _parse_args(argv=None) -> argparse.Namespace:
         help="Generate N consecutive windows going back in time, each --days wide "
         "(e.g. --backfill 4 with --days 7 = the past 4 weeks, one report each).",
     )
+    parser.add_argument(
+        "--lang",
+        default="zh",
+        help="Report language: 'zh' (default), 'en', or any language name.",
+    )
     parser.add_argument("--model", default=None, help="Model name (overrides OPENAI_MODEL)")
     parser.add_argument("--base-url", default=None, help="OpenAI-compatible base URL (overrides OPENAI_BASE_URL)")
     parser.add_argument("--temperature", type=float, default=0.3, help="Sampling temperature (default: 0.3)")
@@ -134,6 +139,7 @@ def _process_one(owner: str, repo: str, args, since_time, end_time) -> bool:
                 model=args.model,
                 base_url=args.base_url,
                 temperature=args.temperature,
+                language=args.lang,
             )
         except Exception as exc:  # noqa: BLE001 - surface a clean message to the user
             print(f"AI summarization failed for {owner}/{repo}: {exc}", file=sys.stderr)

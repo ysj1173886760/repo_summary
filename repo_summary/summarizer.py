@@ -19,7 +19,10 @@ areas (with inline numbering for these areas). Then summarize these PRs by \
 their categories (features, components, hardware backends, etc.).
 
 **Formatting Instructions:**
+- Write the entire report in {language}.
 - Use numbering for the first level, bullet points for other levels.
+- Keep code symbols, identifiers and PR titles in their original form; do NOT \
+translate `code symbols` or proper nouns.
 - Use backticks for code symbols (e.g., `DTensor`).
 - Give the number and link for mentioned PRs (e.g., [PR#1234](URL)).
 
@@ -27,9 +30,21 @@ their categories (features, components, hardware backends, etc.).
 {pr_summary}
 """
 
+# Maps short language codes to a human-readable name used in the prompt.
+_LANGUAGE_NAMES = {
+    "zh": "Simplified Chinese (简体中文)",
+    "en": "English",
+}
 
-def build_prompt(pr_summary: str, owner: str, repo: str) -> str:
-    return _PROMPT_TEMPLATE.format(owner=owner, repo=repo, pr_summary=pr_summary)
+
+def _language_name(language: str) -> str:
+    return _LANGUAGE_NAMES.get(language.lower(), language)
+
+
+def build_prompt(pr_summary: str, owner: str, repo: str, language: str = "zh") -> str:
+    return _PROMPT_TEMPLATE.format(
+        owner=owner, repo=repo, pr_summary=pr_summary, language=_language_name(language)
+    )
 
 
 def summarize(
@@ -40,6 +55,7 @@ def summarize(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     temperature: float = 0.3,
+    language: str = "zh",
 ) -> str:
     """Send the PR summary to an OpenAI-compatible model and return the digest.
 
@@ -57,7 +73,7 @@ def summarize(
         )
 
     client = OpenAI(api_key=api_key, base_url=base_url)
-    prompt = build_prompt(pr_summary, owner, repo)
+    prompt = build_prompt(pr_summary, owner, repo, language=language)
 
     print(f"Sending PR summary to model '{model}'"
           + (f" via {base_url}" if base_url else "") + " ...")
@@ -68,7 +84,10 @@ def summarize(
         messages=[
             {
                 "role": "system",
-                "content": "You are a senior AI software architect writing concise technical digests.",
+                "content": (
+                    "You are a senior AI software architect writing concise technical digests. "
+                    f"Always write your response in {_language_name(language)}."
+                ),
             },
             {"role": "user", "content": prompt},
         ],
