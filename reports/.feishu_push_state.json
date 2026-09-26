@@ -9,7 +9,11 @@
       "report-20260803.md",
       "report-20260810.md",
       "report-20260817.md",
-      "report-20260824.md"
+      "report-20260824.md",
+      "report-20260831.md",
+      "report-20260907.md",
+      "report-20260914.md",
+      "report-20260921.md"
     ],
     "skipped": [
       "report-20260516.md",
@@ -20,7 +24,7 @@
       "report-20260615.md",
       "report-20260622.md"
     ],
-    "updated_at": "2026-09-26T02:47:06+00:00"
+    "updated_at": "2026-09-26T06:04:56+00:00"
   },
   "pytorch/pytorch": {
     "pushed": [
@@ -32,7 +36,11 @@
       "report-20260803.md",
       "report-20260810.md",
       "report-20260817.md",
-      "report-20260824.md"
+      "report-20260824.md",
+      "report-20260831.md",
+      "report-20260907.md",
+      "report-20260914.md",
+      "report-20260921.md"
     ],
     "skipped": [
       "report-20260516.md",
@@ -43,7 +51,7 @@
       "report-20260615.md",
       "report-20260622.md"
     ],
-    "updated_at": "2026-09-26T02:34:44+00:00"
+    "updated_at": "2026-09-26T06:04:49+00:00"
   },
   "pytorch/torchtitan": {
     "pushed": [
@@ -55,7 +63,11 @@
       "report-20260803.md",
       "report-20260810.md",
       "report-20260817.md",
-      "report-20260824.md"
+      "report-20260824.md",
+      "report-20260831.md",
+      "report-20260907.md",
+      "report-20260914.md",
+      "report-20260921.md"
     ],
     "skipped": [
       "report-20260516.md",
@@ -66,6 +78,6 @@
       "report-20260615.md",
       "report-20260622.md"
     ],
-    "updated_at": "2026-09-26T02:38:49+00:00"
+    "updated_at": "2026-09-26T06:05:04+00:00"
   }
 }
