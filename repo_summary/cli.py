@@ -15,7 +15,7 @@ except ImportError:  # python-dotenv is optional at runtime
     pass
 
 from . import __version__
-from .formatting import pulls_to_prompt_input
+from .formatting import pulls_to_prompt_input, split_bot_pulls, stats_line
 from .github_client import fetch_recent_pulls
 from .summarizer import summarize
 
@@ -115,24 +115,29 @@ def _resolve_targets(args: argparse.Namespace):
     return [tuple(r.split("/", 1)) for r in DEFAULT_REPOS]
 
 
-def _process_one(owner: str, repo: str, args, since_time, end_time) -> bool:
+def _in_window(pr, since_time, end_time) -> bool:
+    created_at = datetime.fromisoformat(pr.created_at.replace("Z", "+00:00"))
+    return since_time <= created_at <= end_time
+
+
+def _process_one(owner: str, repo: str, args, since_time, end_time, all_pulls) -> bool:
     print("=" * 40)
-    print(f"{owner}/{repo}")
+    print(f"{owner}/{repo}: {since_time.strftime('%Y-%m-%d')} -> {end_time.strftime('%Y-%m-%d')}")
     print("=" * 40)
 
-    pulls = fetch_recent_pulls(owner, repo, since_time=since_time, end_time=end_time)
+    pulls, bots = split_bot_pulls(pr for pr in all_pulls if _in_window(pr, since_time, end_time))
     if not pulls:
         print(f"No recent pull requests found for {owner}/{repo}.")
         return True
 
-    print(f"Number of recent pulls: {len(pulls)}")
+    print(f"Number of recent pulls: {len(pulls)} (+{len(bots)} from bots, ignored)")
     prompt_input = pulls_to_prompt_input(pulls, body_max_len=args.body_max_len)
 
     if args.no_ai:
         report_body = prompt_input
     else:
         try:
-            report_body = summarize(
+            digest = summarize(
                 prompt_input,
                 owner,
                 repo,
@@ -140,10 +145,12 @@ def _process_one(owner: str, repo: str, args, since_time, end_time) -> bool:
                 base_url=args.base_url,
                 temperature=args.temperature,
                 language=args.lang,
+                pr_numbers=[pr.number for pr in pulls],
             )
         except Exception as exc:  # noqa: BLE001 - surface a clean message to the user
             print(f"AI summarization failed for {owner}/{repo}: {exc}", file=sys.stderr)
             return False
+        report_body = f"{stats_line(pulls, len(bots))}\n\n{digest}"
         print("\nAI Analysis of Recent Pull Requests:\n")
         print(report_body)
 
@@ -166,13 +173,18 @@ def main(argv=None) -> int:
         print(f"Backfilling {len(windows)} windows of {args.days} day(s) each.")
 
     all_ok = True
-    for since_time, end_time in windows:
-        if len(windows) > 1:
-            print("\n" + "#" * 50)
-            print(f"# Window: {since_time.strftime('%Y-%m-%d')} -> {end_time.strftime('%Y-%m-%d')}")
-            print("#" * 50)
-        for owner, repo in targets:
-            ok = _process_one(owner, repo, args, since_time, end_time)
+    earliest = min(since for since, _ in windows)
+    latest = max(end for _, end in windows)
+    for owner, repo in targets:
+        # Fetch the whole span once; windows are sliced locally.
+        try:
+            all_pulls = fetch_recent_pulls(owner, repo, since_time=earliest, end_time=latest)
+        except RuntimeError as exc:
+            print(f"Fetching pull requests failed for {owner}/{repo}: {exc}", file=sys.stderr)
+            all_ok = False
+            continue
+        for since_time, end_time in windows:
+            ok = _process_one(owner, repo, args, since_time, end_time, all_pulls)
             all_ok = all_ok and ok
 
     return 0 if all_ok else 1

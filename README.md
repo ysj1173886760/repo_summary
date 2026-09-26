@@ -108,6 +108,21 @@ python -m repo_summary.cli pytorch pytorch
 | `--output-dir`   | `reports`   | Where reports are written.                   |
 | `--no-ai`        | off         | Skip summarization; output the raw PR list.  |
 
+## Report format
+
+Each report starts with PR stats computed from the GitHub data (merged / open /
+draft / closed; bot PRs are excluded), followed by the model's digest in a
+fixed structure: 本周概览 → 重点进展 → 分领域动态 → 值得关注.
+
+The model only writes bare `#1234` references; they are turned into PR links
+in code, so links are always valid. PR descriptions are trimmed adaptively
+(busy repos get shorter excerpts), and outputs that are truncated or stuck
+repeating themselves are retried once and deduplicated as a last resort.
+
+Set `GH_TOKEN` locally: unauthenticated GitHub API calls are limited to 60 per
+hour, which a single week of `pytorch/pytorch` can exceed. A failed fetch now
+aborts that repo instead of summarizing partial data.
+
 ## Deploy on GitHub Actions
 
 A workflow at `.github/workflows/repo-summary.yml` runs the tool automatically,

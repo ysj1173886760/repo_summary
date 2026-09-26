@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -26,6 +27,51 @@ class PullRequest:
     url: str
     labels: List[str] = field(default_factory=list)
     body: str = ""
+    merged: bool = False
+    draft: bool = False
+
+    @property
+    def status(self) -> str:
+        if self.merged:
+            return "merged"
+        if self.state == "open":
+            return "draft" if self.draft else "open"
+        return "closed"
+
+    @property
+    def is_bot(self) -> bool:
+        login = self.user.lower()
+        return login.endswith("[bot]") or login in _BOT_LOGINS
+
+
+_BOT_LOGINS = {"pytorchbot", "pytorchupdatebot", "facebook-github-bot", "dependabot", "renovate"}
+_GHSTACK_HEAD_RE = re.compile(r"^gh/[^/]+/\d+/head$")
+
+
+def _is_merged(pull: dict, labels: List[str]) -> bool:
+    # PyTorch-style repos land code outside the merge button: pytorchbot adds a
+    # "Merged" label, and ghstack PRs are closed after `ghstack land`.
+    if pull.get("merged_at") or "Merged" in labels:
+        return True
+    head_ref = (pull.get("head") or {}).get("ref", "")
+    return pull["state"] == "closed" and bool(_GHSTACK_HEAD_RE.match(head_ref))
+
+
+def pull_from_api(pull: dict) -> PullRequest:
+    labels = [label["name"] for label in pull.get("labels", [])]
+    return PullRequest(
+        number=pull["number"],
+        title=pull["title"],
+        state=pull["state"],
+        created_at=pull["created_at"],
+        updated_at=pull["updated_at"],
+        user=pull["user"]["login"],
+        url=pull["html_url"],
+        labels=labels,
+        body=pull.get("body") or "",
+        merged=_is_merged(pull, labels),
+        draft=bool(pull.get("draft")),
+    )
 
 
 def _iso(dt: datetime) -> str:
@@ -40,7 +86,7 @@ def fetch_recent_pulls(
     token: Optional[str] = None,
     per_page: int = 50,
     max_retries: int = 5,
-    base_delay: float = 8.0,
+    base_delay: Optional[float] = None,
 ) -> List[PullRequest]:
     """Fetch pull requests created within ``[since_time, end_time]``.
 
@@ -83,8 +129,7 @@ def fetch_recent_pulls(
             print(f"Request error: {exc}")
             retries -= 1
             if retries <= 0:
-                print("Max retries reached. Stopping.")
-                break
+                raise RuntimeError(f"GitHub request failed after {max_retries} attempts: {exc}")
             time.sleep(5)
             continue
 
@@ -92,8 +137,9 @@ def fetch_recent_pulls(
             print(f"Request failed (status {response.status_code}): {response.text[:200]}")
             retries -= 1
             if retries <= 0:
-                print("Max retries reached. Stopping.")
-                break
+                raise RuntimeError(
+                    f"GitHub request failed after {max_retries} attempts (status {response.status_code})"
+                )
             print(f"Retrying... ({retries} attempts left)")
             time.sleep(5)
             continue
@@ -115,19 +161,7 @@ def fetch_recent_pulls(
                 break
             if created_at > end_time:
                 continue
-            collected.append(
-                PullRequest(
-                    number=pull["number"],
-                    title=pull["title"],
-                    state=pull["state"],
-                    created_at=pull["created_at"],
-                    updated_at=pull["updated_at"],
-                    user=pull["user"]["login"],
-                    url=pull["html_url"],
-                    labels=[label["name"] for label in pull.get("labels", [])],
-                    body=pull.get("body") or "",
-                )
-            )
+            collected.append(pull_from_api(pull))
             page_hits += 1
 
         print(f"  -> {page_hits} pull requests within window (total {len(collected)})")
@@ -136,6 +170,6 @@ def fetch_recent_pulls(
             break
 
         params["page"] += 1
-        time.sleep(base_delay + len(collected) / 100.0)
+        time.sleep(base_delay if base_delay is not None else (1.0 if token else 8.0))
 
     return collected
