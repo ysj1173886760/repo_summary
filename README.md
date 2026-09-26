@@ -119,6 +119,9 @@ then commits the generated reports back to the repo.
   - `days` — window width (default `7`).
   - `backfill` — number of contiguous windows (e.g. `4` = past 4 weeks, one
     report each). Use this for a one-time month backfill straight from the web UI.
+  - `skip_generate` — only push existing reports to Feishu (no new reports).
+  - `cold_start` — how many historical reports to send on a repo's first push
+    (default `4`, `-1` = all).
 
 ### One-time setup
 
@@ -139,6 +142,41 @@ them. The default repo set is `pytorch/torchtitan`, `pytorch/pytorch`, and
 > Note: `.env` is git-ignored and only used for local runs. Never commit your
 > real API key — use the GitHub secret instead.
 
+## Push to Feishu
+
+Each repo's report goes to its own Feishu group via a custom bot webhook.
+
+1. In each Feishu group: *Settings* → *Bots* → *Add bot* → *Custom bot*, and
+   copy the webhook URL. Enabling *signature verification* is recommended.
+2. Add a repository secret **`FEISHU_WEBHOOKS`** containing a single-line JSON
+   object mapping `owner/repo` to the webhook (with `secret` if signing is on):
+
+   ```json
+   {"pytorch/pytorch": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
+    "nvidia/megatron-lm": {"url": "https://open.feishu.cn/open-apis/bot/v2/hook/yyy", "secret": "zzz"},
+    "pytorch/torchtitan": {"url": "https://open.feishu.cn/open-apis/bot/v2/hook/www", "secret": "vvv"}}
+   ```
+
+3. Cold start: run the workflow manually with `skip_generate` checked. Each
+   group receives its latest `cold_start` (default 4) historical reports,
+   oldest first; older reports are marked as skipped.
+
+After that, every scheduled run pushes only the newly generated reports. Push
+history lives in `reports/.feishu_push_state.json` and is committed with the
+reports; delete a repo's entry there to cold-start that group again. Repos
+without a webhook are ignored.
+
+Long reports are split into multiple cards (webhook requests are capped at
+20 KB); reports needing more than `--max-parts` (default 8) cards are truncated
+with a link to the full report on GitHub.
+
+Local usage:
+
+```bash
+python -m repo_summary.push --dry-run      # preview what would be sent
+python -m repo_summary.push --cold-start 2 # send
+```
+
 ## Project layout
 
 ```
@@ -147,5 +185,7 @@ repo_summary/
   formatting.py      # body cleanup + prompt-input rendering
   summarizer.py      # OpenAI-compatible summarization
   cli.py             # argparse entry point
+  feishu.py          # Feishu webhook client (signing, card splitting)
+  push.py            # per-repo Feishu push with state tracking / cold start
 main.py              # convenience launcher
 ```

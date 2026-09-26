@@ -18,10 +18,24 @@ on:
         description: "Number of contiguous windows to generate (e.g. 4 = past 4 weeks, one report each)"
         required: false
         default: "1"
+      skip_generate:
+        description: "Only push existing reports to Feishu, don't generate new ones"
+        type: boolean
+        required: false
+        default: false
+      cold_start:
+        description: "First push to a repo's Feishu group: send only the latest N historical reports (-1 = all)"
+        required: false
+        default: "4"
 
 # Allow the workflow to commit the generated reports back to the repository.
 permissions:
   contents: write
+
+# The push state file is committed back, so runs must not overlap.
+concurrency:
+  group: repo-summary
+  cancel-in-progress: false
 
 jobs:
   summarize:
@@ -40,6 +54,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Generate summaries
+        if: github.event.inputs.skip_generate != 'true'
         env:
           # GITHUB_TOKEN is provided automatically; used to raise GitHub API rate limits.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -56,7 +71,17 @@ jobs:
           if [ -n "$BACKFILL" ]; then ARGS="$ARGS --backfill $BACKFILL"; fi
           python main.py $ARGS
 
+      - name: Push reports to Feishu
+        if: success() || failure()
+        env:
+          FEISHU_WEBHOOKS: ${{ secrets.FEISHU_WEBHOOKS }}
+        run: |
+          COLD_START="${{ github.event.inputs.cold_start }}"
+          python -m repo_summary.push ${COLD_START:+--cold-start $COLD_START}
+
+      # Always commit so reports and push state survive a partial failure.
       - name: Commit and push reports
+        if: success() || failure()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

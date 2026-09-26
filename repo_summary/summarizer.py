@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Optional
 
 from openai import OpenAI
@@ -39,6 +40,15 @@ _LANGUAGE_NAMES = {
 
 def _language_name(language: str) -> str:
     return _LANGUAGE_NAMES.get(language.lower(), language)
+
+
+_LINK_URL_RE = re.compile(r"\]\((https?://[^)\s]+)\)")
+# Models sometimes emit typographic dashes/spaces inside URLs, which breaks links.
+_URL_CHAR_FIXES = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u00a0": ""})
+
+
+def fix_link_urls(markdown: str) -> str:
+    return _LINK_URL_RE.sub(lambda m: f"]({m.group(1).translate(_URL_CHAR_FIXES)})", markdown)
 
 
 def build_prompt(pr_summary: str, owner: str, repo: str, language: str = "zh") -> str:
@@ -92,4 +102,7 @@ def summarize(
             {"role": "user", "content": prompt},
         ],
     )
-    return (response.choices[0].message.content or "").strip()
+    content = (response.choices[0].message.content or "").strip()
+    if not content:
+        raise RuntimeError("Model returned an empty response.")
+    return fix_link_urls(content)

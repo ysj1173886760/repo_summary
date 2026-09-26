@@ -1,0 +1,83 @@
+{
+  "nvidia/megatron-lm": {
+    "pushed": [
+      "report-20260629.md",
+      "report-20260706.md",
+      "report-20260713.md",
+      "report-20260720.md",
+      "report-20260727.md",
+      "report-20260803.md",
+      "report-20260810.md",
+      "report-20260817.md",
+      "report-20260824.md",
+      "report-20260831.md",
+      "report-20260907.md",
+      "report-20260914.md",
+      "report-20260921.md"
+    ],
+    "skipped": [
+      "report-20260516.md",
+      "report-20260523.md",
+      "report-20260530.md",
+      "report-20260606.md",
+      "report-20260608.md",
+      "report-20260615.md",
+      "report-20260622.md"
+    ],
+    "updated_at": "2026-09-26T02:47:06+00:00"
+  },
+  "pytorch/pytorch": {
+    "pushed": [
+      "report-20260629.md",
+      "report-20260706.md",
+      "report-20260713.md",
+      "report-20260720.md",
+      "report-20260727.md",
+      "report-20260803.md",
+      "report-20260810.md",
+      "report-20260817.md",
+      "report-20260824.md",
+      "report-20260831.md",
+      "report-20260907.md",
+      "report-20260914.md",
+      "report-20260921.md"
+    ],
+    "skipped": [
+      "report-20260516.md",
+      "report-20260523.md",
+      "report-20260530.md",
+      "report-20260606.md",
+      "report-20260608.md",
+      "report-20260615.md",
+      "report-20260622.md"
+    ],
+    "updated_at": "2026-09-26T02:34:44+00:00"
+  },
+  "pytorch/torchtitan": {
+    "pushed": [
+      "report-20260629.md",
+      "report-20260706.md",
+      "report-20260713.md",
+      "report-20260720.md",
+      "report-20260727.md",
+      "report-20260803.md",
+      "report-20260810.md",
+      "report-20260817.md",
+      "report-20260824.md",
+      "report-20260831.md",
+      "report-20260907.md",
+      "report-20260914.md",
+      "report-20260921.md"
+    ],
+    "skipped": [
+      "report-20260516.md",
+      "report-20260523.md",
+      "report-20260530.md",
+      "report-20260606.md",
+      "report-20260608.md",
+      "report-20260615.md",
+      "report-20260622.md"
+    ],
+    "updated_at": "2026-09-26T02:38:49+00:00"
+  }
+}
